@@ -82,20 +82,12 @@ fi
 if [[ `echo -e "$asg_result" | grep -c "AutoScalingGroupARN"` < 1 ]]
 	then echo "No Auto Scaling Group was found. Because no Auto Scaling Group has been found, $app_name does not know which Auto Scaling Group should have Instances terminated." 1>&2 ; exit 64
 fi
-#confirms that certain Auto Scaling processes are not suspended. For certain processes, the "Suspending Processing" state prevents the termination of Auto Scaling Group instances and thus prevents aws-ha-release from running properly.
-necessary_processes=(RemoveFromLoadBalancerLowPriority Terminate Launch HealthCheck AddToLoadBalancer)
-for process in "${necessary_processes[@]}"
-do
-	if [[ `echo -e "$asg_result" | grep -c "SuspensionReason"` > 0 ]]
-		then echo "Scaling Process $process for the Auto Scaling Group $asg_group_name is currently suspended. $app_name will now exit as Scaling Processes ${necessary_processes[@]} are required for $app_name to run properly." 1>&2 ; exit 77
-	fi
-done
 
 #gets Auto Scaling Group max-size
-asg_initial_max_size=`echo $asg_result | awk '/MaxSize/{ print $2 }' RS=,`
+asg_initial_max_size=`aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$asg_group_name" --region $region --query 'AutoScalingGroups[*].MaxSize' --output text`
 asg_temporary_max_size=$(($asg_initial_max_size+1))
 #gets Auto Scaling Group desired-capacity
-asg_initial_desired_capacity=`echo $asg_result | awk '/DesiredCapacity/{ print $2 }' RS=,`
+asg_initial_desired_capacity=`aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$asg_group_name" --region $region --query 'AutoScalingGroups[*].DesiredCapacity' --output text`
 asg_temporary_desired_capacity=$((asg_initial_desired_capacity+1))
 #gets list of Auto Scaling Group Instances - these Instances will be terminated
 asg_instance_list=`echo "$asg_result" | grep InstanceId | sed 's/.*i-/i-/' | sed 's/",//'`
